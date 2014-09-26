@@ -40,21 +40,20 @@ test$Survived[test$Sex == 'female' & test$Pclass == 3 & test$Fare >= 20] <- 0
 library(rpart)
 
 fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train, method="class")
-#######
-fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train,
-             method="class", control=rpart.control(minsplit=2, cp=0))
-new.fit <- prp(fit,snip=TRUE)$obj
-fancyRpartPlot(new.fit)
 
-predicition <- predict(fit, test, type="class")
+pred.decissiontree <- predict(fit, test, type="class")
 
 ######################################################
 ## naive Bayes
 library(e1071)
 
-model <- naiveBayes(Survived ~ Sex + Pclass + Age + Fare, data = train)
-pred <- predict(model, test)
+naivebayes.fit <- naiveBayes(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train)
 
+pred.naivebayes <- predict(naivebayes.fit,test)
+
+## Submit result
+submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.naivebayes)
+write.csv(submit, file = "pred.csv", row.names = FALSE)
 ######################################################
 ## random forest
 library(randomForest)
@@ -65,3 +64,62 @@ fit <- randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embar
 
 submit <- data.frame(PassengerId = test$PassengerId, Survived = pred)
 write.csv(submit, file = "pred.csv", row.names = FALSE)
+
+
+
+############################remove NAs###########################
+mean.train.age <- mean(train$Age, na.rm=TRUE)
+train$Age[is.na(train$Age)] <- mean.train.age
+
+mean.test.age <- mean(test$Age, na.rm=TRUE)
+test$Age[is.na(test$Age)] <- mean.test.age
+
+fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train, method="class")
+pred.decissiontree <- predict(fit, test, type="class")
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.decissiontree)
+write.csv(submit, file = "pred_decisiontree.csv", row.names = FALSE)
+
+################## Feature Engineering ##########################
+head(train$Name)
+
+test$Survived <- NA
+conbi <- rbind(train,test)
+
+strsplit(conbi$Name[1],split='[,.]')[[1]][2]
+conbi$Title <- sapply(conbi$Name, FUN= function(x){strsplit(x, split='[,.]')[[1]][2]})
+conbi$Title <- sub(' ','',conbi$Title) ## trim
+conbi$Title[conbi$Title %in% c('Mme','Mlle')] <- 'Mlle'
+conbi$Title[conbi$Title %in% c('Capt', 'Don', 'Major', 'Sir')] <- 'Sir'
+conbi$Title[conbi$Title %in% c('Dona', 'Lady', 'the Countess', 'Jonkheer')] <- 'Lady'
+
+conbi$Title <- as.factor(conbi$Title)
+
+## add the number of siblings, spouses, parents and children the passenger 
+conbi$FamliySize <- conbi$SibSp + conbi$Parch + 1
+conbi$Surname <- sapply(conbi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][1]})
+
+conbi$FamilyID <- paste(as.character(conbi$FamliySize), conbi$Surname, sep="")
+conbi$FamilyID[conbi$FamliySize <= 2] <- 'Small'
+table(conbi$FamilyID)
+
+
+famIDs <- data.frame(table(conbi$FamilyID))
+famIDs <- famIDs[famIDs$Freq <= 2,]
+
+conbi$FamilyID[conbi$FamilyID %in% famIDs$Var1] <- 'Small'
+conbi$FamilyID <- factor(conbi$FamilyID)
+
+
+## break them apart 
+train <- conbi[1:891,]
+test <- conbi[892:1309,]
+
+## Prediction
+fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + FamliySize + FamilyID,
+             data=train, method="class")
+pred.decissiontree <- predict(fit, train, type="class")
+
+## submit
+submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.decissiontree)
+write.csv(submit, file = "pred_decisiontree.csv", row.names = FALSE)
