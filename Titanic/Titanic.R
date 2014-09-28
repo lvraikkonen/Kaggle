@@ -55,15 +55,6 @@ pred.naivebayes <- predict(naivebayes.fit,test)
 submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.naivebayes)
 write.csv(submit, file = "pred.csv", row.names = FALSE)
 ######################################################
-## random forest
-library(randomForest)
-
-fit <- randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked,
-                    data=train, importance=FALSE, ntree=2000)
-
-
-submit <- data.frame(PassengerId = test$PassengerId, Survived = pred)
-write.csv(submit, file = "pred.csv", row.names = FALSE)
 
 
 
@@ -96,11 +87,11 @@ conbi$Title[conbi$Title %in% c('Dona', 'Lady', 'the Countess', 'Jonkheer')] <- '
 conbi$Title <- as.factor(conbi$Title)
 
 ## add the number of siblings, spouses, parents and children the passenger 
-conbi$FamliySize <- conbi$SibSp + conbi$Parch + 1
+conbi$FamilySize <- conbi$SibSp + conbi$Parch + 1
 conbi$Surname <- sapply(conbi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][1]})
 
-conbi$FamilyID <- paste(as.character(conbi$FamliySize), conbi$Surname, sep="")
-conbi$FamilyID[conbi$FamliySize <= 2] <- 'Small'
+conbi$FamilyID <- paste(as.character(conbi$FamilySize), conbi$Surname, sep="")
+conbi$FamilyID[conbi$FamilySize <= 2] <- 'Small'
 table(conbi$FamilyID)
 
 
@@ -116,10 +107,80 @@ train <- conbi[1:891,]
 test <- conbi[892:1309,]
 
 ## Prediction
-fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + FamliySize + FamilyID,
+fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + FamilySize + FamilyID,
              data=train, method="class")
 pred.decissiontree <- predict(fit, train, type="class")
 
 ## submit
 submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.decissiontree)
 write.csv(submit, file = "pred_decisiontree.csv", row.names = FALSE)
+
+
+####################### Random Forest ###################################
+## treat missing age value
+## use decsion tree to predict missing age
+Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare + Embarked + Title + FamilySize,
+                data=conbi[!is.na(conbi$Age),], method='anova')
+conbi$Age[is.na(conbi$Age)] <- predict(Agefit, conbi[is.na(conbi$Age),])
+
+summary(conbi)
+
+## Embarked has a blank for two passengers
+table(conbi$Embarked)
+
+which(conbi$Embarked == '')
+conbi$Embarked[c(62,830)] = "S"
+conbi$Embarked <- as.factor(conbi$Embarked)
+
+## Fare
+which(is.na(conbi$Fare))
+conbi$Fare[1044] <- median(conbi$Fare, na.rm=TRUE)
+
+## factor level should be less than 32
+conbi$FamilyID2 <- conbi$FamilyID
+conbi$FamilyID2 <- as.character(conbi$FamilyID2)
+conbi$FamilyID2[conbi$FamilySize <= 3] <- 'Small'
+conbi$FamilyID2 <- factor(conbi$FamilyID2)
+
+## break them apart 
+train <- conbi[1:891,]
+test <- conbi[892:1309,]
+
+train$Sex <- as.factor(train$Sex)
+test$Sex <- as.factor(test$Sex)
+
+
+## loda library randomForest
+library(randomForest)
+
+set.seed(412)
+
+
+fit <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare +
+                        Embarked + Title + FamilySize + FamilyID2,
+                    data = train,
+                    importance=TRUE, ntree=30)
+
+## what variables were important
+varImpPlot(fit)
+
+## subimt the prediction result
+pred.randomForest <- predict(fit,test)
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.randomForest)
+write.csv(submit, file = "pred_rendomForest.csv", row.names = FALSE)
+
+
+############################forest of conditional inference tree ############
+library(party)
+
+set.seed(415)
+
+fit <- cforest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare +
+                   Embarked + Title + FamilySize + FamilyID,
+               data = train, controls=cforest_unbiased(ntree=2000,mtry=3))
+
+pred.cirandomForest <- predict(fit,test, OOB=TRUE,type="response")
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = pred.cirandomForest)
+write.csv(submit, file = "pred_cirendomForest.csv", row.names = FALSE)
