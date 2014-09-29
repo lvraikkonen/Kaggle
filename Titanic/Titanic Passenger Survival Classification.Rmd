@@ -1,0 +1,249 @@
+---
+title: "Predict survival on the Titanic with R"
+author: "Claus Lv"
+date: "Monday, September 29, 2014"
+output: html_document
+---
+
+## Introduction
+There given two datasets:
+
+- training set
+complete with the outcome (or target variable) for a group of passengers as well as a collection of other parameters such as their age, gender, etc. This is the dataset on which you must train your predictive model.
+- test set
+for which you must predict the now unknown target variable based on the other passenger attributes that are provided for both datasets.
+
+```{r load related packages}
+library(rpart) ## descision tree
+library(e1071) ## naiveBayes
+library(randomForest) ## random forest
+library(party) ## ci forest?
+```
+
+```{r set the work directory}
+# getwd()
+# setwd("./GitHub/Kaggle/Titanic")
+```
+
+
+## Load train and test datasets
+```{r load data}
+train <- read.csv("~/GitHub/Kaggle/Titanic/train.csv", stringsAsFactors=FALSE)
+test <- read.csv("~/GitHub/Kaggle/Titanic/test.csv", stringsAsFactors=FALSE)
+
+str(train)
+summary(test)
+```
+
+## Data Exploration
+The disaster was famous for saving "women and children first", so let's take a look at the Sex and Age variables to see if any patterns are evident.
+```{r data exploration}
+table(train$Survived)
+prop.table(table(train$Sex, train$Survived),1) ## 1 stands for the rows
+```
+We now can see that the majority of females aboard survived, and a very low percentage of males did
+
+```{r}
+## create a new variable Child
+train$Child <- 0
+train$Child[train$Age < 18] <- 1
+
+## Aggregate Data
+aggregate(Survived ~ Child + Sex, data=train, FUN=length)
+
+## Fare variable
+train$Fare2 <- '30+'
+train$Fare2[train$Fare < 30 & train$Fare >= 20] <- '20-30'
+train$Fare2[train$Fare < 20 & train$Fare >= 10] <- '10-20'
+train$Fare2[train$Fare < 10] <- '<10'
+aggregate(Survived ~ Fare2 + Pclass + Sex, data=train,
+          FUN=function(x) {sum(x)/length(x)})
+
+```
+
+### Treat missing values
+```{r reload source data}
+train <- read.csv("~/GitHub/Kaggle/Titanic/train.csv", stringsAsFactors=FALSE)
+test <- read.csv("~/GitHub/Kaggle/Titanic/test.csv", stringsAsFactors=FALSE)
+```
+
+
+### Age Variable
+- Method 1: Use the average age value to fill in the missing value
+```{r remove NAs}
+# mean.train.age <- mean(train$Age, na.rm=TRUE)
+# train$Age[is.na(train$Age)] <- mean.train.age
+# 
+# mean.test.age <- mean(test$Age, na.rm=TRUE)
+# test$Age[is.na(test$Age)] <- mean.test.age
+```
+
+- Method 2: Grow a tree on the subset of the data with the age values available
+```{r fill in missing age}
+# ## use decsion tree to predict missing age
+# Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare +
+#                     Embarked + Title + FamilySize,
+#                 data=combi[!is.na(combi$Age),], method='anova')
+# combi$Age[is.na(combi$Age)] <- predict(Agefit, combi[is.na(combi$Age),])
+```
+
+
+### Feature Engineering
+Feature engineering is so important to how your model performs, that even a simple model with great features can outperform a complicated algorithm with poor ones.
+```{r insight data}
+############################ Title ###############################
+train$Name[1]
+## extract titles from name
+test$Survived <- NA
+combi <- rbind(train,test)
+
+class(combi$Name)
+
+strsplit(combi$Name[1], split='[,.]')
+
+strsplit(combi$Name[1], split='[,.]')[[1]][2]
+## Get the title
+combi$Title <- sapply(combi$Name, 
+                      FUN= function(x) {strsplit(x, split='[,.]')[[1]][2]})
+## trim the space
+combi$Title <- sub(' ','',combi$Title)
+
+table(combi$Title)
+
+combi$Title[combi$Title %in% c('Mme', 'Mlle')] <- 'Mlle'
+combi$Title[combi$Title %in% c('Capt', 'Don', 'Major', 'Sir')] <- 'Sir'
+combi$Title[combi$Title %in% c('Dona', 'Lady', 'the Countess', 'Jonkheer')] <- 'Lady'
+
+table(combi$Title)
+
+################################ Family Size ###########################
+## add the number of siblings, spouses, parents and children the passenger 
+combi$FamilySize <- combi$SibSp + combi$Parch + 1
+## Surname
+# strsplit(combi$Name[1],split='[,.]')[[1]][1]
+combi$Surname <- sapply(combi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][1]})
+
+combi$FamilyID <- paste(as.character(combi$FamilySize), combi$Surname, sep="")
+combi$FamilyID[combi$FamilySize <= 2] <- 'Small'
+
+famIDs <- data.frame(table(combi$FamilyID))
+famIDs <- famIDs[famIDs$Freq <= 2,]
+
+combi$FamilyID[combi$FamilyID %in% famIDs$Var1] <- 'Small'
+
+table(combi$FamilyID)
+
+############################# Age ####################################
+## use decsion tree to predict missing age
+Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare +
+                    Embarked + Title + FamilySize,
+                data=combi[!is.na(combi$Age),], method='anova')
+combi$Age[is.na(combi$Age)] <- predict(Agefit, combi[is.na(combi$Age),])
+```
+
+*Note: For decision tree, factor level should be less than 32*
+```{r}
+combi$FamilyID2 <- combi$FamilyID
+combi$FamilyID2 <- as.character(combi$FamilyID2)
+combi$FamilyID2[combi$FamilySize <= 3] <- 'Small'
+table(combi$FamilyID2)
+```
+
+
+### Embarked Variable
+Embarked has a blank for two passengers
+```{r Embarked}
+table(combi$Embarked)
+
+which(combi$Embarked == '')
+## make them as 'S'
+combi$Embarked[c(62,830)] = "S"
+combi$Embarked <- as.factor(combi$Embarked)
+```
+
+### Fare NA
+```{r Fare}
+summary(combi$Fare)
+which(is.na(combi$Fare))
+## fill in the NA using median value
+combi$Fare[1044] <- median(combi$Fare, na.rm=TRUE)
+```
+
+### make some variables as factor
+```{r factors}
+combi$Pclass <- as.factor(combi$Pclass)
+combi$Sex <- as.factor(combi$Sex)
+combi$Title <- as.factor(combi$Title)
+combi$FamilyID <- as.factor(combi$FamilyID)
+combi$FamilyID2 <- as.factor(combi$FamilyID2)
+```
+
+
+## Use Algriothm to predict
+KNN, naiveBayes, Decision Tree, Random Forest, etc.
+```{r break the data set}
+## break the data set
+train <- combi[1:891,]
+test <- combi[892:1309,]
+```
+
+### naïveBayes classifier
+y value should be factor class
+```{r}
+naivebayes.fit <- naiveBayes(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train)
+
+pred.naivebayes <- predict(naivebayes.fit,test)
+```
+
+### decision tree classifier
+```{r}
+decisiontree.fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, data=train, method="class")
+
+pred.decissiontree <- predict(decisiontree.fit, test, type="class")
+```
+
+### random forest classifier
+```{r}
+set.seed(412)
+
+randomforest.fit <- randomForest(as.factor(Survived) ~ Pclass + Sex +
+                        Age + SibSp + Parch + Fare + Embarked + Title +
+                        FamilySize + FamilyID2,
+                    data = train,
+                    importance=TRUE, ntree=30)
+## what variables were important
+varImpPlot(randomforest.fit)
+
+pred.randomForest <- predict(randomforest.fit, test)
+```
+
+### forest of conditional inference tree classifier
+```{r}
+set.seed(415)
+
+ciforest.fit <- cforest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp +
+                   Parch + Fare + Embarked + Title + FamilySize + FamilyID,
+               data = train, controls=cforest_unbiased(ntree=2000,mtry=3))
+pred.cirandomForest <- predict(ciforest.fit,test, OOB=TRUE,type="response")
+```
+
+## Evaluate the algriothm
+
+## Submit the result
+```{r submit}
+submit.naivebayes <- data.frame(PassengerId = test$PassengerId,
+                     Survived = pred.naivebayes)
+submit.decisiontree <- data.frame(PassengerId = test$PassengerId,
+                     Survived = pred.decissiontree)
+submit.randomforest <- data.frame(PassengerId = test$PassengerId,
+                     Survived = pred.randomForest)
+submit.ciforest <- data.frame(PassengerId = test$PassengerId,
+                     Survived = pred.cirandomForest)
+
+write.csv(submit.naivebayes, file = "pred_naivebayes.csv", row.names = FALSE)
+write.csv(submit.decisiontree, file = "pred_decissiontree.csv", row.names = FALSE)
+write.csv(submit.randomforest, file = "pred_randomForest.csv", row.names = FALSE)
+write.csv(submit.ciforest, file = "pred_cirendomForest.csv", row.names = FALSE)
+```
+
+
