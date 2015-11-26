@@ -8,5 +8,12 @@ San Francisco Crime Classification/train.csv
 Whats Cooking/sample_submission.csv
 Whats Cooking/test.json
 Whats Cooking/train.json
+<<<<<<< HEAD
 *.pyc
 Bag of Words Meets Bags of Popcorn/data/testData.tsv
+=======
+
+Titanic/results-rf.csv
+
+Titanic/titanic_test1.csv
+>>>>>>> origin/master
