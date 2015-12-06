@@ -41,3 +41,13 @@ Homesite Quote Conversion/sample_submission.csv
 Homesite Quote Conversion/test.csv
 
 Homesite Quote Conversion/train.csv
+
+Prudential Life Insurance Assessment/data/test.csv
+
+Prudential Life Insurance Assessment/data/train.csv
+
+Prudential Life Insurance Assessment/prudential_xgboost.csv
+
+Prudential Life Insurance Assessment/prudential_lr_xgboost.csv
+
+Prudential Life Insurance Assessment/data/sample_submission.csv
