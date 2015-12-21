@@ -54,3 +54,25 @@ Prudential Life Insurance Assessment/data/sample_submission.csv
 Springleaf marketing response/test.csv
 
 Whats Cooking/ensemble_vote1.csv
+
+Walmart Trip Type Classification/data/train.csv
+
+Walmart Trip Type Classification/data/test2.buffer
+
+Walmart Trip Type Classification/data/test.csv
+
+Walmart Trip Type Classification/data/sample_submission.csv
+
+Walmart Trip Type Classification/data/dtrain1.buffer
+
+Walmart Trip Type Classification/data/dtrain2.buffer
+
+Walmart Trip Type Classification/data/dtestCV1.buffer
+
+Walmart Trip Type Classification/data/test1.buffer
+
+Walmart Trip Type Classification/data/dtestCV2.buffer
+
+Prudential Life Insurance Assessment/prudential_xgboost_tune.csv
+
+Prudential Life Insurance Assessment/prudential_xgboost_poissoncount.csv
