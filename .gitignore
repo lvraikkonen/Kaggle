@@ -76,3 +76,15 @@ Walmart Trip Type Classification/data/dtestCV2.buffer
 Prudential Life Insurance Assessment/prudential_xgboost_tune.csv
 
 Prudential Life Insurance Assessment/prudential_xgboost_poissoncount.csv
+
+Learning Models/__init__.py
+
+Learning Models/bayes_opt/__init__.py
+
+Learning Models/bayes_opt/bayesian_optimization.py
+
+Learning Models/bayes_opt/helpers.py
+
+Learning Models/helpers.py
+
+Learning Models/bayesian_optimization.py
