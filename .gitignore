@@ -88,3 +88,9 @@ Learning Models/bayes_opt/helpers.py
 Learning Models/helpers.py
 
 Learning Models/bayesian_optimization.py
+
+Walmart Trip Type Classification/data/submission_default.csv
+
+Walmart Trip Type Classification/train_submit.py
+
+Homesite Quote Conversion/xgb_benchmark.csv
